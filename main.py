@@ -4,7 +4,7 @@
 
 匹配模板 template_id 的字段：
   date, city, weather, min_temperature, max_temperature, pop, tips,
-  love_day, birthday1, birthday2, lucky, lizhi, pipi, tianqi
+  love_day, birthday2, lucky, lizhi, pipi, tianqi
 
 依赖：仅 Python 标准库（urllib / gzip / json）。
 天气：和风天气 QWeather REST API
@@ -14,10 +14,8 @@ Secrets（GitHub Actions）：
   APP_ID / APP_SECRET / USER_ID / TEMPLATE_ID  微信公众平台
   CITY           城市中文名，如 福州
   HEFENG_KEY     和风天气 API key
-  START_DATE     恋爱开始日期 YYYY-MM-DD  -> love_day
-  BIRTHDAY       宝贝生日 MM-DD            -> birthday1（与旧项目兼容）
-  BABY_BIRTHDAY  宝贝生日 MM-DD            -> birthday1（优先于 BIRTHDAY）
-  XIAYE_BIRTHDAY 小叶生日 MM-DD            -> birthday2
+  START_DATE         恋爱开始日期 YYYY-MM-DD  -> love_day
+  JINGJING_BIRTHDAY  婧婧生日 MM-DD            -> birthday2
   LUCKY_TEXT / LIZHI_TEXT / PIPI_TEXT / TIANQI_TEXT  自定义文案
 本地调试同目录放 config.json 亦可（结构同上）。
 """
@@ -153,17 +151,16 @@ def build_payload():
     hkey = env("HEFENG_KEY")
     city = env("CITY", "福州")
     start = env("START_DATE")
-    baby = env("BABY_BIRTHDAY") or env("BIRTHDAY")   # 兼容旧项目 secret 名
-    xiaoye = env("XIAYE_BIRTHDAY")
+    jingjing = env("JINGJING_BIRTHDAY")
     lucky = env("LUCKY_TEXT", "")
     lizhi = env("LIZHI_TEXT", "")
     pipi = env("PIPI_TEXT", "")
     tianqi = env("TIANQI_TEXT", "")
 
     # 个人字段未配齐时，只打印不发送，避免给收信人发半成品
-    required = {"START_DATE": start, "BABY_BIRTHDAY": baby,
-                "XIAYE_BIRTHDAY": xiaoye, "LUCKY_TEXT": lucky,
-                "LIZHI_TEXT": lizhi, "PIPI_TEXT": pipi, "TIANQI_TEXT": tianqi}
+    required = {"START_DATE": start, "JINGJING_BIRTHDAY": jingjing,
+                "LUCKY_TEXT": lucky, "LIZHI_TEXT": lizhi,
+                "PIPI_TEXT": pipi, "TIANQI_TEXT": tianqi}
     missing = [k for k, v in required.items() if not v]
 
     if not all([appid, secret, user, tpl]):
@@ -177,8 +174,7 @@ def build_payload():
     log("天气获取完成")
 
     love = str(days_since(start)) if start else "—"
-    b1 = str(days_until(baby)) if baby else "—"
-    b2 = str(days_until(xiaoye)) if xiaoye else "—"
+    b2 = str(days_until(jingjing)) if jingjing else "—"
 
     now = datetime.now()
     week = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"][now.weekday()]
@@ -197,7 +193,6 @@ def build_payload():
         "pop": {"value": today.get("pop", "")},
         "tips": {"value": tips_for(today)},
         "love_day": {"value": love},
-        "birthday1": {"value": b1},
         "birthday2": {"value": b2},
         "lucky": {"value": lucky},
         "lizhi": {"value": lizhi},
