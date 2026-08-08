@@ -2,13 +2,13 @@
 # -*- coding: utf-8 -*-
 """每日早安 / 天气 + 恋爱小情书 推送到 微信模板消息。
 
-匹配模板 template_id 的字段（共 13 个，新模板已去掉 birthday1）：
+匹配模板 template_id 的字段（共 10 个）：
   date, city, weather, min_temperature, max_temperature, pop, tips,
-  love_day, birthday2, lucky, lizhi, pipi, tianqi
+  love_day, birthday2, pipi
 
 依赖：仅 Python 标准库（urllib / gzip / json）。
 天气：和风天气 QWeather REST API
-文案：天行数据 TianAPI（幸运词/励志/彩虹屁，失败自动兜底）
+文案：天行数据 TianAPI（彩虹屁 caihongpi，失败自动兜底）
 推送：微信公众号模板消息接口
 
 Secrets（GitHub Actions）：
@@ -18,7 +18,7 @@ Secrets（GitHub Actions）：
   TIAN_KEY       天行数据 API key
   START_DATE         恋爱开始日期 YYYY-MM-DD  -> love_day
   JINGJING_BIRTHDAY  婧婧生日 MM-DD            -> birthday2
-  LUCKY_TEXT / LIZHI_TEXT / PIPI_TEXT / TIANQI_TEXT  自定义文案（可选，覆盖 API）
+  PIPI_TEXT  自定义彩虹屁文案（可选，覆盖天行 API）
 本地调试同目录放 config.json 亦可（结构同上）。
 """
 import json
@@ -220,11 +220,8 @@ def build_payload():
     if now_data and now_data.get("text"):
         weather_text = now_data["text"]
 
-    # 文案：优先用 Secret 自定义；否则走天行 API；再不行用兜底文案
-    lucky = env("LUCKY_TEXT") or tianapi_text("one", tkey) or "今天也是被爱的一天 ✨"
-    lizhi = env("LIZHI_TEXT") or tianapi_text("zaoan", tkey) or "无论晴雨，记得对自己好一点。"
+    # 文案：pipi 走天行彩虹屁；失败用兜底
     pipi = env("PIPI_TEXT") or tianapi_text("caihongpi", tkey) or "你笑起来的样子最好看。"
-    tianqi = env("TIANQI_TEXT") or tips_for(today)
 
     data = {
         "date": {"value": date_str},
@@ -236,10 +233,7 @@ def build_payload():
         "tips": {"value": tips_for(today)},
         "love_day": {"value": love},
         "birthday2": {"value": b2},
-        "lucky": {"value": lucky},
-        "lizhi": {"value": lizhi},
         "pipi": {"value": pipi},
-        "tianqi": {"value": tianqi},
     }
     payload = {"touser": user, "template_id": tpl, "data": data}
     return payload, missing
