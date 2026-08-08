@@ -34,6 +34,7 @@ jobs:
         USER_ID: ${{ secrets.USER_ID }}
         CITY: ${{ secrets.CITY }}
         HEFENG_KEY: ${{ secrets.HEFENG_KEY }}
+        TIAN_KEY: ${{ secrets.TIAN_KEY }}
         START_DATE: ${{ secrets.START_DATE }}
         JINGJING_BIRTHDAY: ${{ secrets.JINGJING_BIRTHDAY }}
         LUCKY_TEXT: ${{ secrets.LUCKY_TEXT }}
