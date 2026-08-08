@@ -205,19 +205,22 @@ def build_payload():
         "tianqi": {"value": tianqi},
     }
     payload = {"touser": user, "template_id": tpl, "data": data}
-
-    if missing:
-        log("以下个人字段未配置，仅打印不发送: " + ", ".join(missing))
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
-        return None
-
-    return payload
+    return payload, missing
 
 
 def main():
-    payload = build_payload()
-    if payload is None:
+    payload, missing = build_payload()
+    dry = env("DRY_RUN") in ("1", "true", "True")
+
+    if dry:
+        log("DRY_RUN 模式：仅打印，不发送")
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
         return
+    if missing:
+        log("⚠️ 以下个人字段未配置，跳过发送（配置后再次运行即推送）: " + ", ".join(missing))
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+
     token = wx_token(env("APP_ID"), env("APP_SECRET"))
     log("获取 access_token 成功")
     resp = wx_send(token, payload)
