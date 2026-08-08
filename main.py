@@ -221,7 +221,8 @@ def build_payload():
         weather_text = now_data["text"]
 
     # 文案：pipi 走天行彩虹屁；失败用兜底
-    pipi = env("PIPI_TEXT") or tianapi_text("caihongpi", tkey) or "你笑起来的样子最好看。"
+    pipi_raw = env("PIPI_TEXT") or tianapi_text("caihongpi", tkey) or "你笑起来的样子最好看。"
+    pipi = pipi_raw[:60]  # 防止超长句子被微信截断整条消息
 
     data = {
         "date": {"value": date_str},
