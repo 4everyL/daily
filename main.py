@@ -23,6 +23,7 @@ Secrets（GitHub Actions）：
 """
 import json
 import os
+import re
 import sys
 import gzip
 import urllib.request
@@ -146,6 +147,16 @@ def wx_send(token, payload):
     return d
 
 
+def wx_template_fields(token, tpl_id):
+    """读取微信后台模板的合法字段 key 列表。"""
+    d = http_get_json(f"https://api.weixin.qq.com/cgi-bin/template/get_all_private_template?access_token={token}")
+    for tpl in d.get("template_list", []):
+        if tpl.get("template_id") == tpl_id:
+            content = tpl.get("content", "")
+            return re.findall(r"\{\{([^{}\s]+)\.DATA\}\}", content)
+    raise RuntimeError(f"在微信后台找不到模板 {tpl_id}")
+
+
 # ---------------- 计算 ----------------
 def days_since(date_str):
     start = datetime.strptime(date_str, "%Y-%m-%d").date()
@@ -224,22 +235,42 @@ def build_payload():
     pipi_raw = env("PIPI_TEXT") or tianapi_text("caihongpi", tkey) or "你笑起来的样子最好看。"
     pipi = pipi_raw[:60]  # 防止超长句子被微信截断整条消息
 
-    data = {
-        "date": {"value": date_str},
-        "city": {"value": city_full},
-        "weather": {"value": weather_text},
-        "min_temperature": {"value": today.get("tempMin", "")},
-        "max_temperature": {"value": today.get("tempMax", "")},
-        "love_day": {"value": love},
-        "birthday2": {"value": b2},
-        "pipi": {"value": pipi},
+    # 按微信后台模板实际字段动态拼装（字段必须 ≤5 个才能全显示）
+    token = wx_token(appid, secret)
+    tpl_fields = wx_template_fields(token, tpl)
+    log(f"模板字段: {tpl_fields}")
+    if len(tpl_fields) > 5:
+        log("⚠️ 模板字段超过 5 个，微信客户端通常只显示前 5 个，建议精简模板至 ≤5 个字段")
+
+    temp_min = today.get("tempMin", "")
+    temp_max = today.get("tempMax", "")
+    weather_summary = f"{city_full} {weather_text} {temp_min}°C~{temp_max}°C".strip()
+
+    values = {
+        "date": date_str,
+        "city": city_full,
+        "weather": weather_text,
+        "min_temperature": temp_min,
+        "max_temperature": temp_max,
+        "love_day": love,
+        "birthday2": b2,
+        "pipi": pipi,
     }
+    # 如果模板只用了 weather 一个字段承载天气，自动把城市+天气+温度合并进去
+    if "weather" in tpl_fields and not any(k in tpl_fields for k in ("city", "min_temperature", "max_temperature")):
+        values["weather"] = weather_summary
+    data = {}
+    for k in tpl_fields:
+        if k in values:
+            data[k] = {"value": values[k]}
+        else:
+            log(f"⚠️ 模板字段 {k} 在代码中未定义，已跳过")
     payload = {"touser": user, "template_id": tpl, "data": data}
-    return payload, missing
+    return payload, missing, token
 
 
 def main():
-    payload, missing = build_payload()
+    payload, missing, token = build_payload()
     if payload is None:
         log("⚠️ 个人字段未配置，跳过发送: " + ", ".join(missing))
         return
@@ -254,8 +285,7 @@ def main():
     if not pipi_val:
         log("⚠️ pipi 仍为空（不应发生），强制兜底")
         fields["pipi"] = {"value": "你笑起来的样子最好看。"}
-    log(f"字段自检: 共 {len(fields)} 个字段, "
-        f"date/city/weather/temp/love/birthday2/pipi 均在; "
+    log(f"字段自检: 共 {len(fields)} 个字段, 已渲染字段={list(fields.keys())}; "
         f"pipi长度={len(fields.get('pipi', {}).get('value', ''))}")
 
     dry = env("DRY_RUN") in ("1", "true", "True")
@@ -264,7 +294,6 @@ def main():
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return
 
-    token = wx_token(env("APP_ID"), env("APP_SECRET"))
     log("获取 access_token 成功")
     resp = wx_send(token, payload)
     log(f"✅ 推送成功: {resp}")
