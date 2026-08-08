@@ -1,8 +1,14 @@
 name: morning
+
 on:
   schedule:
-  - cron:  '0 0 * * *'
+  - cron:  '0 0 * * *'      # UTC 0:00 = 北京时间 08:00
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '只打印不发送（默认 true；正式发送请填 false）'
+        required: false
+        default: 'true'
 
 jobs:
   send_message:
@@ -20,13 +26,20 @@ jobs:
       with:
         python-version: '3.x'
         architecture: 'x64'
-    - run: pip install -r ./requirements.txt && python ./main.py
-
-    env:
-      APP_ID: ${{ secrets.APP_ID }}
-      APP_SECRET: ${{ secrets.APP_SECRET }}
-      TEMPLATE_ID: ${{ secrets.TEMPLATE_ID }}
-      USER_ID: ${{ secrets.USER_ID }}
-      START_DATE: ${{ secrets.START_DATE }}
-      BIRTHDAY: ${{ secrets.BIRTHDAY }}
-      CITY: ${{ secrets.CITY }}
+    - run: python ./main.py
+      env:
+        APP_ID: ${{ secrets.APP_ID }}
+        APP_SECRET: ${{ secrets.APP_SECRET }}
+        TEMPLATE_ID: ${{ secrets.TEMPLATE_ID }}
+        USER_ID: ${{ secrets.USER_ID }}
+        CITY: ${{ secrets.CITY }}
+        HEFENG_KEY: ${{ secrets.HEFENG_KEY }}
+        START_DATE: ${{ secrets.START_DATE }}
+        BIRTHDAY: ${{ secrets.BIRTHDAY }}
+        BABY_BIRTHDAY: ${{ secrets.BABY_BIRTHDAY }}
+        XIAYE_BIRTHDAY: ${{ secrets.XIAYE_BIRTHDAY }}
+        LUCKY_TEXT: ${{ secrets.LUCKY_TEXT }}
+        LIZHI_TEXT: ${{ secrets.LIZHI_TEXT }}
+        PIPI_TEXT: ${{ secrets.PIPI_TEXT }}
+        TIANQI_TEXT: ${{ secrets.TIANQI_TEXT }}
+        DRY_RUN: ${{ github.event.inputs.dry_run }}
