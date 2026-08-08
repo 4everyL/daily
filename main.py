@@ -256,9 +256,11 @@ def build_payload():
         "birthday2": b2,
         "pipi": pipi,
     }
-    # 如果模板只用了 weather 一个字段承载天气，自动把城市+天气+温度合并进去
-    if "weather" in tpl_fields and not any(k in tpl_fields for k in ("city", "min_temperature", "max_temperature")):
+    # 只要模板用了 weather 字段，就把"城市+天气+温度"合并进去（避免单列时信息不全）；
+    # 同时剔除 city/min_temperature/max_temperature，避免与 weather 重复。
+    if "weather" in tpl_fields:
         values["weather"] = weather_summary
+        tpl_fields = [k for k in tpl_fields if k not in ("city", "min_temperature", "max_temperature")]
     data = {}
     for k in tpl_fields:
         if k in values:
