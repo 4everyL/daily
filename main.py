@@ -2,21 +2,23 @@
 # -*- coding: utf-8 -*-
 """每日早安 / 天气 + 恋爱小情书 推送到 微信模板消息。
 
-匹配模板 template_id 的字段：
+匹配模板 template_id 的字段（共 13 个，新模板已去掉 birthday1）：
   date, city, weather, min_temperature, max_temperature, pop, tips,
   love_day, birthday2, lucky, lizhi, pipi, tianqi
 
 依赖：仅 Python 标准库（urllib / gzip / json）。
 天气：和风天气 QWeather REST API
+文案：天行数据 TianAPI（幸运词/励志/彩虹屁，失败自动兜底）
 推送：微信公众号模板消息接口
 
 Secrets（GitHub Actions）：
   APP_ID / APP_SECRET / USER_ID / TEMPLATE_ID  微信公众平台
   CITY           城市中文名，如 福州
   HEFENG_KEY     和风天气 API key
+  TIAN_KEY       天行数据 API key
   START_DATE         恋爱开始日期 YYYY-MM-DD  -> love_day
   JINGJING_BIRTHDAY  婧婧生日 MM-DD            -> birthday2
-  LUCKY_TEXT / LIZHI_TEXT / PIPI_TEXT / TIANQI_TEXT  自定义文案
+  LUCKY_TEXT / LIZHI_TEXT / PIPI_TEXT / TIANQI_TEXT  自定义文案（可选，覆盖 API）
 本地调试同目录放 config.json 亦可（结构同上）。
 """
 import json
@@ -85,6 +87,44 @@ def hefeng_weather(key, lid):
     return today, now_data
 
 
+# ---------------- 天行数据 TianAPI ----------------
+TIAN_BASE = "https://apis.tianapi.com"
+
+
+def tianapi_text(name, key):
+    """调用天行接口，抽取一句文本；失败/未申请返回 None（由调用方兜底）。"""
+    if not key:
+        return None
+    url = f"{TIAN_BASE}/{name}/index?key={urllib.parse.quote(key)}"
+    try:
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "daily-push/1.0", "Accept-Encoding": "gzip"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            raw = r.read()
+            if r.headers.get("Content-Encoding") == "gzip":
+                raw = gzip.decompress(raw)
+            d = json.loads(raw.decode("utf-8"))
+    except Exception as e:
+        log(f"天行接口 {name} 请求异常: {e}")
+        return None
+    if d.get("code") != 200:
+        log(f"天行接口 {name} 返回 code={d.get('code')} msg={d.get('msg')}")
+        return None
+    res = d.get("result")
+    if isinstance(res, dict):
+        for k in ("content", "word", "saying", "en", "zh"):
+            if res.get(k):
+                return str(res[k])
+    if isinstance(res, list) and res:
+        item = res[0]
+        if isinstance(item, dict):
+            for k in ("content", "word", "saying"):
+                if item.get(k):
+                    return str(item[k])
+        return str(item)
+    return None
+
+
 # ---------------- 微信 ----------------
 WX_TOKEN = "https://api.weixin.qq.com/cgi-bin/token"
 WX_SEND = "https://api.weixin.qq.com/cgi-bin/message/template/send"
@@ -149,32 +189,28 @@ def build_payload():
     user = env("USER_ID")
     tpl = env("TEMPLATE_ID")
     hkey = env("HEFENG_KEY")
+    tkey = env("TIAN_KEY")
     city = env("CITY", "福州")
     start = env("START_DATE")
     jingjing = env("JINGJING_BIRTHDAY")
-    lucky = env("LUCKY_TEXT", "")
-    lizhi = env("LIZHI_TEXT", "")
-    pipi = env("PIPI_TEXT", "")
-    tianqi = env("TIANQI_TEXT", "")
-
-    # 个人字段未配齐时，只打印不发送，避免给收信人发半成品
-    required = {"START_DATE": start, "JINGJING_BIRTHDAY": jingjing,
-                "LUCKY_TEXT": lucky, "LIZHI_TEXT": lizhi,
-                "PIPI_TEXT": pipi, "TIANQI_TEXT": tianqi}
-    missing = [k for k, v in required.items() if not v]
 
     if not all([appid, secret, user, tpl]):
         raise RuntimeError("缺少微信配置 APP_ID/APP_SECRET/USER_ID/TEMPLATE_ID")
     if not hkey:
         raise RuntimeError("缺少 HEFENG_KEY（天气 key）")
 
+    # 个人必填字段（缺失则无法计算，跳过发送）
+    missing = [k for k, v in (("START_DATE", start), ("JINGJING_BIRTHDAY", jingjing)) if not v]
+    if missing:
+        return None, missing
+
     lid, city_full = hefeng_lookup(hkey, city)
     log(f"城市: {city_full}")
     today, now_data = hefeng_weather(hkey, lid)
     log("天气获取完成")
 
-    love = str(days_since(start)) if start else "—"
-    b2 = str(days_until(jingjing)) if jingjing else "—"
+    love = str(days_since(start))
+    b2 = str(days_until(jingjing))
 
     now = datetime.now()
     week = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"][now.weekday()]
@@ -183,6 +219,12 @@ def build_payload():
     weather_text = today.get("textDay", "")
     if now_data and now_data.get("text"):
         weather_text = now_data["text"]
+
+    # 文案：优先用 Secret 自定义；否则走天行 API；再不行用兜底文案
+    lucky = env("LUCKY_TEXT") or tianapi_text("one", tkey) or "今天也是被爱的一天 ✨"
+    lizhi = env("LIZHI_TEXT") or tianapi_text("zaoan", tkey) or "无论晴雨，记得对自己好一点。"
+    pipi = env("PIPI_TEXT") or tianapi_text("caihongpi", tkey) or "你笑起来的样子最好看。"
+    tianqi = env("TIANQI_TEXT") or tips_for(today)
 
     data = {
         "date": {"value": date_str},
@@ -205,14 +247,13 @@ def build_payload():
 
 def main():
     payload, missing = build_payload()
-    dry = env("DRY_RUN") in ("1", "true", "True")
+    if payload is None:
+        log("⚠️ 个人字段未配置，跳过发送: " + ", ".join(missing))
+        return
 
+    dry = env("DRY_RUN") in ("1", "true", "True")
     if dry:
         log("DRY_RUN 模式：仅打印，不发送")
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
-        return
-    if missing:
-        log("⚠️ 以下个人字段未配置，跳过发送（配置后再次运行即推送）: " + ", ".join(missing))
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return
 
