@@ -235,39 +235,37 @@ def build_payload():
     pipi_raw = env("PIPI_TEXT") or tianapi_text("caihongpi", tkey) or "你笑起来的样子最好看。"
     pipi = pipi_raw[:60]  # 防止超长句子被微信截断整条消息
 
-    # 按微信后台模板实际字段动态拼装（字段必须 ≤5 个才能全显示）
-    token = wx_token(appid, secret)
-    tpl_fields = wx_template_fields(token, tpl)
-    log(f"模板字段: {tpl_fields}")
-    if len(tpl_fields) > 5:
-        log("⚠️ 模板字段超过 5 个，微信客户端通常只显示前 5 个，建议精简模板至 ≤5 个字段")
-
     temp_min = today.get("tempMin", "")
     temp_max = today.get("tempMax", "")
+    # weather 字段始终合并"城市+天气+温度"，确保天气信息不丢
+    # （应对后台模板字段拆分、API 缓存滞后、残缺占位符等导致探测不全的情况）
     weather_summary = f"{city_full} {weather_text} {temp_min}°C~{temp_max}°C".strip()
 
-    values = {
-        "date": date_str,
-        "city": city_full,
-        "weather": weather_text,
-        "min_temperature": temp_min,
-        "max_temperature": temp_max,
-        "love_day": love,
-        "birthday2": b2,
-        "pipi": pipi,
+    # 始终发送全部 8 个字段：微信后台模板决定渲染哪些（多给忽略，少给为空）。
+    # 这样即使 API 探测到的字段因缓存/残缺不全，pipi 也一定会被发出去。
+    data = {
+        "date": {"value": date_str},
+        "city": {"value": city_full},
+        "weather": {"value": weather_summary},
+        "min_temperature": {"value": temp_min},
+        "max_temperature": {"value": temp_max},
+        "love_day": {"value": love},
+        "birthday2": {"value": b2},
+        "pipi": {"value": pipi},
     }
-    # 只要模板用了 weather 字段，就把"城市+天气+温度"合并进去（避免单列时信息不全）；
-    # 同时剔除 city/min_temperature/max_temperature，避免与 weather 重复。
-    if "weather" in tpl_fields:
-        values["weather"] = weather_summary
-        tpl_fields = [k for k in tpl_fields if k not in ("city", "min_temperature", "max_temperature")]
-    data = {}
-    for k in tpl_fields:
-        if k in values:
-            data[k] = {"value": values[k]}
-        else:
-            log(f"⚠️ 模板字段 {k} 在代码中未定义，已跳过")
     payload = {"touser": user, "template_id": tpl, "data": data}
+
+    # 探测后台模板字段数，仅作日志告警（不再据此裁剪发送，避免漏发 pipi）
+    token = wx_token(appid, secret)
+    try:
+        tf = wx_template_fields(token, tpl)
+        if len(tf) > 5:
+            log(f"⚠️ 后台模板共 {len(tf)} 个字段，微信通常只渲染前 5 个，"
+                f"pipi 等靠后字段可能被吞，建议精简至 ≤5 字段。")
+        else:
+            log(f"后台模板字段数: {len(tf)} (≤5，预期可全显示)")
+    except Exception as e:
+        log(f"探测模板字段失败(不影响发送): {e}")
     return payload, missing, token
 
 
