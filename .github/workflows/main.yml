@@ -35,9 +35,7 @@ jobs:
         CITY: ${{ secrets.CITY }}
         HEFENG_KEY: ${{ secrets.HEFENG_KEY }}
         START_DATE: ${{ secrets.START_DATE }}
-        BIRTHDAY: ${{ secrets.BIRTHDAY }}
-        BABY_BIRTHDAY: ${{ secrets.BABY_BIRTHDAY }}
-        XIAYE_BIRTHDAY: ${{ secrets.XIAYE_BIRTHDAY }}
+        JINGJING_BIRTHDAY: ${{ secrets.JINGJING_BIRTHDAY }}
         LUCKY_TEXT: ${{ secrets.LUCKY_TEXT }}
         LIZHI_TEXT: ${{ secrets.LIZHI_TEXT }}
         PIPI_TEXT: ${{ secrets.PIPI_TEXT }}
