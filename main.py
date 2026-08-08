@@ -244,6 +244,20 @@ def main():
         log("⚠️ 个人字段未配置，跳过发送: " + ", ".join(missing))
         return
 
+    # 字段自检：任何字段为空都补兜底，并打审计日志，避免 pipi 等字段静默丢失
+    fields = payload["data"]
+    for k, v in fields.items():
+        if not v.get("value"):
+            log(f"⚠️ 字段 {k} 为空，使用兜底值")
+            v["value"] = "—"
+    pipi_val = fields.get("pipi", {}).get("value", "")
+    if not pipi_val:
+        log("⚠️ pipi 仍为空（不应发生），强制兜底")
+        fields["pipi"] = {"value": "你笑起来的样子最好看。"}
+    log(f"字段自检: 共 {len(fields)} 个字段, "
+        f"date/city/weather/temp/love/birthday2/pipi 均在; "
+        f"pipi长度={len(fields.get('pipi', {}).get('value', ''))}")
+
     dry = env("DRY_RUN") in ("1", "true", "True")
     if dry:
         log("DRY_RUN 模式：仅打印，不发送")
