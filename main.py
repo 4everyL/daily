@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 """每日早安 / 天气 + 恋爱小情书 推送到 微信模板消息。
 
-匹配模板 template_id 的字段（共 10 个）：
-  date, city, weather, min_temperature, max_temperature, pop, tips,
+匹配模板 template_id 的字段（共 8 个）：
+  date, city, weather, min_temperature, max_temperature,
   love_day, birthday2, pipi
 
 依赖：仅 Python 标准库（urllib / gzip / json）。
@@ -229,8 +229,6 @@ def build_payload():
         "weather": {"value": weather_text},
         "min_temperature": {"value": today.get("tempMin", "")},
         "max_temperature": {"value": today.get("tempMax", "")},
-        "pop": {"value": today.get("pop", "")},
-        "tips": {"value": tips_for(today)},
         "love_day": {"value": love},
         "birthday2": {"value": b2},
         "pipi": {"value": pipi},
